@@ -17,7 +17,7 @@ filters = {
     },
 }
 
-q = json2q(Q, filters)
+q = json2q(filters, Q)
 # Q(age=10) & Q(name__startswith='A')
 ```
 
@@ -40,7 +40,7 @@ filters = {
     ]
 }
 
-q = json2q(Q, filters)
+q = json2q(filters, Q)
 # Q(age=10) | Q(name__startswith='A')
 ```
 
