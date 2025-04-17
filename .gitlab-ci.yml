@@ -1,0 +1,18 @@
+stages:
+  - build
+
+build_job:
+  image: python:3.12-slim
+  stage: build
+  only:
+    - main
+  variables:
+    PIP_ONLY_BINARY: ":all:"
+    PDM_ONLY_BINARY: ":all:"
+    PDM_CHECK_UPDATE: "false"
+  script:
+    - pip install --index-url ${PIP_INDEX_URL} pdm
+    - python -m venv .venv
+    - pdm install
+    - pdm run lint
+    - pdm run test-cov

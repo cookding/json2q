@@ -1,0 +1,111 @@
+[project]
+name = "json2q"
+version = "0.1.0"
+description = "Convert JSON filters to Q expression"
+authors = [
+    {name = "Cook Ding Developers", email = "developer@cookding.com"},
+]
+dependencies = []
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "APACHE 2.0"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.scripts]
+lint = { shell = """\
+    set -ex
+    mypy src
+    ruff check src tests --fix
+    ruff format src tests
+""" }
+test.cmd = "pytest -r A"
+test.env = { LOG_LEVEL = "error" }
+test-cov.cmd = "pytest --cov-config=.coveragerc --verbosity=3 --cov=src/json2q --cov-branch --cov-report term-missing tests/"
+test-cov.env = { LOG_LEVEL = "error" }
+license-check = "licensecheck --zero"
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.11.2",
+    "mypy>=1.15.0",
+]
+
+[tool.mypy]
+strict = true
+follow_imports = "silent"
+ignore_missing_imports = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+disallow_untyped_decorators = true
+enable_error_code = "explicit-override"
+
+[[tool.mypy.overrides]]
+module = "src.*"
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+check_untyped_defs = true
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+exclude = ["tests/fixtures"]
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "I",       # isort
+    "B",       # flake8-bugbear
+    "C4",      # flake8-comprehensions
+    "F401",    # unused-import
+    "PGH",     # pygrep-hooks
+    "RUF",     # ruff
+    "TID",     # flake8-tidy-imports
+    "W",       # pycodestyle
+    "YTT",     # flake8-2020
+]
+ignore = [
+    "B008",   # function-call-in-default-argument
+    "B018",   # useless-expression
+    "B019",   # cached-instance-method
+    "RUF018", # assignment-in-assert
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.isort]
+known-first-party = ["pdm"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+filterwarnings = ["ignore::DeprecationWarning"]
+addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers"]
+xfail_strict = true
+junit_family = "xunit2"
+testpaths = ["tests/"]
+markers = ["only"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+]
+
+[tool.licensecheck]
+using = "PEP631"
+format = "simple"
