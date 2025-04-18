@@ -78,9 +78,6 @@ class JSON2Q:
             cls._to_q(
                 condition,
                 Q,
-                {
-                    "field_prefix": "",
-                },
             )
             for condition in conditions
         ]
@@ -130,7 +127,7 @@ class JSON2Q:
             return Q(*expressions, join_type="AND")  # type: ignore[call-arg]
 
     @classmethod
-    def _to_q(cls, filters: dict[str, Any], Q: type[T], context: dict[str, Any]) -> T:
+    def _to_q(cls, filters: dict[str, Any], Q: type[T]) -> T:
         if len(filters) == 0:
             return Q()
         # split filters
@@ -165,7 +162,4 @@ class JSON2Q:
         return cls._to_q(
             filters,
             Q,
-            {
-                "field_prefix": "",
-            },
         )
