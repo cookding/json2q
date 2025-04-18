@@ -7,7 +7,7 @@ from tests.fixtures.q import Q
 
 
 def test_empty_filters():
-    q: Q = json2q.to_q({}, Q)
+    q = json2q.to_q({}, Q)
     assert len(q.children) == 0
     assert len(q.filters) == 0
 
@@ -28,7 +28,7 @@ def test_empty_filters():
     ],
 )
 def test_single_field_filters(filters: dict[str, Any], kwargs: dict[str, Any]):
-    q: Q = json2q.to_q(filters, Q)
+    q = json2q.to_q(filters, Q)
 
     assert q.join_type == "AND"
     assert len(q.children) == 0
@@ -44,7 +44,7 @@ def test_multiple_fields_filters():
         "age": {"$eq": 10},
     }
 
-    q: Q = json2q.to_q(filters, Q)
+    q = json2q.to_q(filters, Q)
 
     assert q.join_type == "AND"
     assert len(q.children) == 2
@@ -72,7 +72,7 @@ def test_logical_operators(operator, join_type, is_negated):
         ]
     }
 
-    q: Q = json2q.to_q(filters, Q)
+    q = json2q.to_q(filters, Q)
 
     assert q.join_type == join_type
     assert len(q.children) == 2

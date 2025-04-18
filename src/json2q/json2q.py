@@ -1,66 +1,112 @@
-from typing import Any
+from typing import Any, TypedDict, TypeVar
+
+T = TypeVar("T")
 
 AND = "AND"
 OR = "OR"
 
 
+class LogicalOperatorProperty(TypedDict):
+    join_type: str
+    is_negated: bool
+
+
+LOGICAL_OP_PROPERTIES: dict[str, LogicalOperatorProperty] = {
+    "$and": {
+        "join_type": AND,
+        "is_negated": False,
+    },
+    "$or": {
+        "join_type": OR,
+        "is_negated": False,
+    },
+    "$not": {
+        "join_type": AND,
+        "is_negated": True,
+    },
+}
+
+
+class FieldOperatorProperty(TypedDict):
+    suffix: str
+
+
+FIELD_OP_PROPERTIES: dict[str, FieldOperatorProperty] = {
+    "$eq": {
+        "suffix": "",
+    },
+    "$ne": {
+        "suffix": "__not",
+    },
+    "$lt": {
+        "suffix": "__lt",
+    },
+    "$lte": {
+        "suffix": "__lte",
+    },
+    "$gt": {
+        "suffix": "__gt",
+    },
+    "$gte": {
+        "suffix": "__gte",
+    },
+    "$in": {
+        "suffix": "__in",
+    },
+    "$contains": {
+        "suffix": "__contains",
+    },
+    "$startsWith": {
+        "suffix": "__startswith",
+    },
+    "$endsWith": {
+        "suffix": "__endswith",
+    },
+}
+
+
 class JSON2Q:
     @classmethod
-    def to_q(self, filters: dict[str, Any], Q: type) -> Any:
+    def _logical_filter_to_q(
+        cls, logical_op: str, conditions: list[dict[str, Any]], Q: type[T]
+    ) -> T:
+        expressions = [cls.to_q(condition, Q) for condition in conditions]
+        q = Q(*expressions, join_type=LOGICAL_OP_PROPERTIES[logical_op]["join_type"])  # type: ignore[call-arg]
+        if LOGICAL_OP_PROPERTIES[logical_op]["is_negated"]:
+            return ~q  # type: ignore[operator,no-any-return]
+        else:
+            return q
+
+    @classmethod
+    def _field_filter_to_q(
+        cls, field: str, conditions: dict[str, Any], Q: type[T]
+    ) -> T:
+        q_kwargs = {}
+        for op, value in conditions.items():
+            if op in FIELD_OP_PROPERTIES:
+                q_kwargs[f"{field}{FIELD_OP_PROPERTIES[op]['suffix']}"] = value
+            else:
+                raise SyntaxError("Unsupported operator")
+
+        return Q(join_type="AND", **q_kwargs)  # type: ignore[call-arg]
+
+    @classmethod
+    def to_q(cls, filters: dict[str, Any], Q: type[T]) -> T:
         if len(filters) == 0:
             return Q()
         # split filters
         if len(filters) > 1:
-            expressions = []
-            for key, value in filters.items():
-                expressions.append(self.to_q({f"{key}": value}, Q))
-            return Q(*expressions, join_type=AND)
+            expressions = [
+                cls.to_q({f"{key}": value}, Q) for key, value in filters.items()
+            ]
+            return Q(*expressions, join_type=AND)  # type: ignore[call-arg]
 
         # logical filter
-        if "$and" in filters:
-            expressions = []
-            for filter_item in filters["$and"]:
-                expressions.append(self.to_q(filter_item, Q))
-            return Q(*expressions, join_type=AND)
-
-        if "$or" in filters:
-            expressions = []
-            for filter_item in filters["$or"]:
-                expressions.append(self.to_q(filter_item, Q))
-            return Q(*expressions, join_type=OR)
-
-        if "$not" in filters:
-            expressions = []
-            for filter_item in filters["$not"]:
-                expressions.append(self.to_q(filter_item, Q))
-            return ~Q(*expressions, join_type=AND)
+        key, conditions = next(iter(filters.items()))
+        if key in LOGICAL_OP_PROPERTIES:
+            logical_op = key
+            return cls._logical_filter_to_q(logical_op, conditions, Q)
 
         # field filter
-        field, conditions = next(iter(filters.items()))
-        q_kwargs = {}
-        for op, value in conditions.items():
-            match op:
-                case "$eq":
-                    q_kwargs[field] = value
-                case "$ne":
-                    q_kwargs[f"{field}__not"] = value
-                case "$gt":
-                    q_kwargs[f"{field}__gt"] = value
-                case "$gte":
-                    q_kwargs[f"{field}__gte"] = value
-                case "$lt":
-                    q_kwargs[f"{field}__lt"] = value
-                case "$lte":
-                    q_kwargs[f"{field}__lte"] = value
-                case "$in":
-                    q_kwargs[f"{field}__in"] = value
-                case "$contains":
-                    q_kwargs[f"{field}__contains"] = value
-                case "$startsWith":
-                    q_kwargs[f"{field}__startswith"] = value
-                case "$endsWith":
-                    q_kwargs[f"{field}__endswith"] = value
-                case _:
-                    raise SyntaxError("Unsupported operator")
-
-        return Q(join_type="AND", **q_kwargs)
+        field = key
+        return cls._field_filter_to_q(field, conditions, Q)
