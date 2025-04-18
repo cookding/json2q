@@ -9,16 +9,18 @@ from tortoise.expressions import Q
 from json2q import json2q
 
 filters = {
-    "age": {
-        "$eq": 10
-    },
     "name": {
         "$startsWith": "A"
     },
+    "extras": {
+        "age": {
+            "$eq": 10
+        },
+    }
 }
 
 q = json2q(filters, Q)
-# Q(age=10) & Q(name__startswith='A')
+# Q(name__startswith='A') & Q(extras__age=10)
 ```
 
 ```python
@@ -28,20 +30,29 @@ from json2q import json2q
 filters = {
     "$or": [
         {
-            "age": {
-                "$eq": 10
-            }
-        },
-        {
             "name": {
                 "$startsWith": "A"
             }
-        }
+        },
+        {
+            "$and": [
+                {
+                    "age": {
+                        "$gt": 10
+                    },
+                },
+                {
+                    "age": {
+                        "$lt": 20
+                    },
+                },
+            ]
+        },
     ]
 }
 
 q = json2q(filters, Q)
-# Q(age=10) | Q(name__startswith='A')
+# Q(name__startswith='A') | (Q(age__gt=10) & Q(age__lt=20))
 ```
 
 ## Supported Operators
@@ -64,6 +75,6 @@ q = json2q(filters, Q)
 
 ## Todo
 
-- Support nested fields
 - Support more operators
-- More JSON filters structure validation
+- More filters structure validation
+- Support config options to filters structure validation

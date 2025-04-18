@@ -86,3 +86,87 @@ def test_logical_operators(operator, join_type, is_negated):
     assert len(q.children[1].children) == 0
     assert q.children[1].filters == {"age": 10}
     assert q.children[1]._is_negated == False
+
+
+def test_nested_fields():
+    filters = {
+        "extras": {
+            "name": {"$startsWith": "Alice"},
+            "age": {"$eq": 10},
+        }
+    }
+
+    q = json2q.to_q(filters, Q)
+
+    assert q.join_type == "AND"
+    assert len(q.children) == 2
+    assert len(q.filters) == 0
+    assert q._is_negated == False
+    assert q.children[0].join_type == "AND"
+    assert len(q.children[0].children) == 0
+    assert q.children[0].filters == {"extras__name__startswith": "Alice"}
+    assert q.children[0]._is_negated == False
+    assert q.children[1].join_type == "AND"
+    assert len(q.children[1].children) == 0
+    assert q.children[1].filters == {"extras__age": 10}
+    assert q.children[1]._is_negated == False
+
+
+def test_nested_logical_operators():
+    filters = {
+        "$and": [
+            {
+                "name": {
+                    "$startsWith": "Alice",
+                },
+            },
+            {
+                "$or": [
+                    {
+                        "age": {
+                            "$lt": 10,
+                        },
+                    },
+                    {
+                        "age": {
+                            "$gt": 20,
+                        },
+                    },
+                ],
+            },
+        ],
+    }
+
+    q = json2q.to_q(filters, Q)
+
+    assert q.join_type == "AND"
+    assert len(q.children) == 2
+    assert len(q.filters) == 0
+    assert q._is_negated == False
+    assert q.children[0].join_type == "AND"
+    assert len(q.children[0].children) == 0
+    assert q.children[0].filters == {"name__startswith": "Alice"}
+    assert q.children[0]._is_negated == False
+    assert q.children[1].join_type == "OR"
+    assert len(q.children[1].children) == 2
+    assert len(q.children[1].filters) == 0
+    assert q.children[1]._is_negated == False
+    assert q.children[1].children[0].join_type == "AND"
+    assert len(q.children[1].children[0].children) == 0
+    assert q.children[1].children[0].filters == {"age__lt": 10}
+    assert q.children[1].children[0]._is_negated == False
+    assert q.children[1].children[1].join_type == "AND"
+    assert len(q.children[1].children[1].children) == 0
+    assert q.children[1].children[1].filters == {"age__gt": 20}
+    assert q.children[1].children[1]._is_negated == False
+
+
+def test_raise_when_filters_structure_invalid():
+    filters = {
+        "$eq": 1,
+    }
+
+    try:
+        q = json2q.to_q(filters, Q)
+    except SyntaxError as e:
+        assert e.msg == "Unsupported operator or field"
