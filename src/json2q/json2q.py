@@ -101,19 +101,22 @@ class JSON2Q:
         expressions = []
         for key, value in conditions.items():
             if key in FIELD_OP_PROPERTIES:
+                op = key
                 expressions.append(
                     Q(
                         join_type="AND",
                         **{
-                            f"{context['field_prefix']}{field}{FIELD_OP_PROPERTIES[key]['suffix']}": value
+                            f"{context['field_prefix']}{field}{FIELD_OP_PROPERTIES[op]['suffix']}": value
                         },
                     )  # type: ignore[call-arg]
                 )
             else:
+                sub_field = key
+                sub_conditions = value
                 expressions.append(
                     cls._field_filter_to_q(
-                        key,
-                        value,
+                        sub_field,
+                        sub_conditions,
                         Q,
                         {
                             "field_prefix": f"{context['field_prefix']}{field}__",
