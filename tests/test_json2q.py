@@ -170,3 +170,49 @@ def test_raise_when_filters_structure_invalid():
         q = json2q.to_q(filters, Q)
     except SyntaxError as e:
         assert e.msg == "Unsupported operator or field"
+
+
+@pytest.mark.parametrize(
+    "filters, max_depth, is_error_expected",
+    [
+        ({"extras": {"age": {"$eq": 10}}}, 2, False),
+        ({"extras": {"age": {"$eq": 10}}}, 1, True),
+        ({"extras": {"name": {"$startsWith": "Alice"}, "age": {"$eq": 10}}}, 2, False),
+        ({"extras": {"name": {"$startsWith": "Alice"}, "age": {"$eq": 10}}}, 1, True),
+        ({"$and": [{"age": {"$gt": 10}}, {"age": {"$lt": 10}}]}, 2, False),
+        ({"$and": [{"age": {"$gt": 10}}, {"age": {"$lt": 10}}]}, 1, True),
+        ({"$and": [{"$or": [{"age": {"$gt": 10}}, {"age": {"$lt": 10}}]}]}, 3, False),
+        ({"$and": [{"$or": [{"age": {"$gt": 10}}, {"age": {"$lt": 10}}]}]}, 2, True),
+        ({"$and": [{"$or": []}]}, 2, False),
+        ({"$and": [{"$or": []}]}, 1, True),
+    ],
+)
+def test_max_depth_option(filters, max_depth, is_error_expected):
+    is_error = False
+
+    try:
+        q = json2q.to_q(filters, Q, json2q.ConvertionOptions(max_depth=max_depth))
+    except ValueError as e:
+        is_error = True
+
+    assert is_error == is_error_expected
+
+
+@pytest.mark.parametrize(
+    "filters, max_keys, is_error_expected",
+    [
+        ({"name": {"$startsWith": "Alice"}, "age": {"$eq": 10}}, 2, False),
+        ({"name": {"$startsWith": "Alice"}, "age": {"$eq": 10}}, 1, True),
+        ({"$not": [{"name": {"$startsWith": "Alice"}, "age": {"$eq": 10}}]}, 2, False),
+        ({"$not": [{"name": {"$startsWith": "Alice"}, "age": {"$eq": 10}}]}, 1, True),
+    ],
+)
+def test_max_keys_option(filters, max_keys, is_error_expected):
+    is_error = False
+
+    try:
+        q = json2q.to_q(filters, Q, json2q.ConvertionOptions(max_keys=max_keys))
+    except ValueError as e:
+        is_error = True
+
+    assert is_error == is_error_expected

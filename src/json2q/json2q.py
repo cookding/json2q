@@ -1,4 +1,5 @@
-from typing import Any, TypedDict, TypeVar
+from dataclasses import dataclass
+from typing import Any, Optional, TypedDict, TypeVar
 
 T = TypeVar("T")
 
@@ -36,22 +37,49 @@ FIELD_OP_PROPERTIES: dict[str, FieldOperatorProperty] = {
 }
 
 
+class LogicalFilterContext(TypedDict):
+    depth: int
+
+
 class FieldFilterContext(TypedDict):
     field_prefix: str
+    depth: int
 
 
 class JSON2Q:
+    @dataclass
+    class ConvertionOptions:
+        """Options to configure the convertion in ``json2q.to_q``."""
+
+        max_depth: int = 8
+        """By default, when nesting logical operators or fields, ``json2q`` will only decode up to 8 children deep.
+        This depth can be overridden by setting the ``max_depth``.
+        The depth limit helps mitigate abuse when ``json2q`` is used to parse user input,
+        and it is recommended to keep it a reasonably small number."""
+
+        max_keys: int = 64
+        """By default, ``json2q`` will only parse up to 64 keys in each level. This can be overridden by
+        passing a ``max_keys`` option."""
+
     @classmethod
     def _logical_filter_to_q(
         cls,
         logical_op: str,
         conditions: list[dict[str, Any]],
         Q: type[T],
+        options: ConvertionOptions,
+        context: LogicalFilterContext,
     ) -> T:
+        if context["depth"] > options.max_depth:
+            raise ValueError("Filters depth exceeded max_depth")
         expressions = [
             cls._to_q(
                 condition,
                 Q,
+                options,
+                {
+                    "depth": context["depth"] + 1,
+                },
             )
             for condition in conditions
         ]
@@ -70,8 +98,11 @@ class JSON2Q:
         field: str,
         conditions: dict[str, Any],
         Q: type[T],
+        options: ConvertionOptions,
         context: FieldFilterContext,
     ) -> T:
+        if context["depth"] > options.max_depth:
+            raise ValueError("Filters depth exceeded max_depth")
         expressions = []
         for key, value in conditions.items():
             if key in FIELD_OP_PROPERTIES:
@@ -93,8 +124,10 @@ class JSON2Q:
                         sub_field,
                         sub_conditions,
                         Q,
+                        options,
                         {
                             "field_prefix": sub_field_prefix,
+                            "depth": context["depth"] + 1,
                         },
                     )
                 )
@@ -112,15 +145,23 @@ class JSON2Q:
         cls,
         filters: dict[str, Any],
         Q: type[T],
+        options: ConvertionOptions,
+        context: LogicalFilterContext,
     ) -> T:
         if len(filters) == 0:
             return Q()
         if len(filters) > 1:
             # split filters
+            if len(filters) > options.max_keys:
+                raise ValueError("Filters keys exceeded max_keys")
             expressions = [
                 cls._to_q(
                     {f"{key}": value},
                     Q,
+                    options,
+                    {
+                        "depth": context["depth"],
+                    },
                 )
                 for key, value in filters.items()
             ]
@@ -133,7 +174,15 @@ class JSON2Q:
         if key in LOGICAL_OP_PROPERTIES:
             # logical filter
             logical_op = key
-            return cls._logical_filter_to_q(logical_op, conditions, Q)
+            return cls._logical_filter_to_q(
+                logical_op,
+                conditions,
+                Q,
+                options,
+                {
+                    "depth": context["depth"],
+                },
+            )
 
         if not key.startswith("$"):
             # field filter
@@ -142,8 +191,10 @@ class JSON2Q:
                 field,
                 conditions,
                 Q,
+                options,
                 {
                     "field_prefix": "",
+                    "depth": context["depth"],
                 },
             )
 
@@ -154,8 +205,11 @@ class JSON2Q:
         cls,
         filters: dict[str, Any],
         Q: type[T],
+        options: Optional[ConvertionOptions] = None,
     ) -> T:
         return cls._to_q(
             filters,
             Q,
+            options if options != None else cls.ConvertionOptions(),
+            {"depth": 1},
         )

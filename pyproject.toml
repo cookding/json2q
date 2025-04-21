@@ -1,6 +1,6 @@
 [project]
 name = "json2q"
-version = "0.2.0"
+version = "0.3.0"
 description = "Convert JSON filters to Q expression"
 authors = [
     {name = "Cook Ding Developers", email = "developer@cookding.com"},
