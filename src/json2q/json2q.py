@@ -12,18 +12,9 @@ class LogicalOperatorProperty(TypedDict):
 
 
 LOGICAL_OP_PROPERTIES: dict[str, LogicalOperatorProperty] = {
-    "$and": {
-        "join_type": AND,
-        "is_negated": False,
-    },
-    "$or": {
-        "join_type": OR,
-        "is_negated": False,
-    },
-    "$not": {
-        "join_type": AND,
-        "is_negated": True,
-    },
+    "$and": {"join_type": AND, "is_negated": False},
+    "$or": {"join_type": OR, "is_negated": False},
+    "$not": {"join_type": AND, "is_negated": True},
 }
 
 
@@ -31,48 +22,31 @@ class FieldOperatorProperty(TypedDict):
     suffix: str
 
 
+FIELD_OP_PROPERTIES: dict[str, FieldOperatorProperty] = {
+    "$eq": {"suffix": ""},
+    "$ne": {"suffix": "__not"},
+    "$lt": {"suffix": "__lt"},
+    "$lte": {"suffix": "__lte"},
+    "$gt": {"suffix": "__gt"},
+    "$gte": {"suffix": "__gte"},
+    "$in": {"suffix": "__in"},
+    "$contains": {"suffix": "__contains"},
+    "$startsWith": {"suffix": "__startswith"},
+    "$endsWith": {"suffix": "__endswith"},
+}
+
+
 class FieldFilterContext(TypedDict):
     field_prefix: str
-
-
-FIELD_OP_PROPERTIES: dict[str, FieldOperatorProperty] = {
-    "$eq": {
-        "suffix": "",
-    },
-    "$ne": {
-        "suffix": "__not",
-    },
-    "$lt": {
-        "suffix": "__lt",
-    },
-    "$lte": {
-        "suffix": "__lte",
-    },
-    "$gt": {
-        "suffix": "__gt",
-    },
-    "$gte": {
-        "suffix": "__gte",
-    },
-    "$in": {
-        "suffix": "__in",
-    },
-    "$contains": {
-        "suffix": "__contains",
-    },
-    "$startsWith": {
-        "suffix": "__startswith",
-    },
-    "$endsWith": {
-        "suffix": "__endswith",
-    },
-}
 
 
 class JSON2Q:
     @classmethod
     def _logical_filter_to_q(
-        cls, logical_op: str, conditions: list[dict[str, Any]], Q: type[T]
+        cls,
+        logical_op: str,
+        conditions: list[dict[str, Any]],
+        Q: type[T],
     ) -> T:
         expressions = [
             cls._to_q(
@@ -81,7 +55,10 @@ class JSON2Q:
             )
             for condition in conditions
         ]
-        q = Q(*expressions, join_type=LOGICAL_OP_PROPERTIES[logical_op]["join_type"])  # type: ignore[call-arg]
+        q = Q(
+            *expressions,
+            join_type=LOGICAL_OP_PROPERTIES[logical_op]["join_type"],
+        )  # type: ignore[call-arg]
         if LOGICAL_OP_PROPERTIES[logical_op]["is_negated"]:
             return ~q  # type: ignore[operator,no-any-return]
         else:
@@ -99,24 +76,25 @@ class JSON2Q:
         for key, value in conditions.items():
             if key in FIELD_OP_PROPERTIES:
                 op = key
+                q_filter_key = f"{context['field_prefix']}{field}{FIELD_OP_PROPERTIES[op]['suffix']}"
+                q_filter_value = value
                 expressions.append(
                     Q(
                         join_type="AND",
-                        **{
-                            f"{context['field_prefix']}{field}{FIELD_OP_PROPERTIES[op]['suffix']}": value
-                        },
+                        **{f"{q_filter_key}": q_filter_value},
                     )  # type: ignore[call-arg]
                 )
             else:
                 sub_field = key
                 sub_conditions = value
+                sub_field_prefix = f"{context['field_prefix']}{field}__"
                 expressions.append(
                     cls._field_filter_to_q(
                         sub_field,
                         sub_conditions,
                         Q,
                         {
-                            "field_prefix": f"{context['field_prefix']}{field}__",
+                            "field_prefix": sub_field_prefix,
                         },
                     )
                 )
@@ -124,22 +102,36 @@ class JSON2Q:
         if len(expressions) == 1:
             return expressions[0]
         else:
-            return Q(*expressions, join_type="AND")  # type: ignore[call-arg]
+            return Q(
+                *expressions,
+                join_type="AND",
+            )  # type: ignore[call-arg]
 
     @classmethod
-    def _to_q(cls, filters: dict[str, Any], Q: type[T]) -> T:
+    def _to_q(
+        cls,
+        filters: dict[str, Any],
+        Q: type[T],
+    ) -> T:
         if len(filters) == 0:
             return Q()
-        # split filters
         if len(filters) > 1:
+            # split filters
             expressions = [
-                cls.to_q({f"{key}": value}, Q) for key, value in filters.items()
+                cls._to_q(
+                    {f"{key}": value},
+                    Q,
+                )
+                for key, value in filters.items()
             ]
-            return Q(*expressions, join_type=AND)  # type: ignore[call-arg]
+            return Q(
+                *expressions,
+                join_type=AND,
+            )  # type: ignore[call-arg]
 
-        # logical filter
         key, conditions = next(iter(filters.items()))
         if key in LOGICAL_OP_PROPERTIES:
+            # logical filter
             logical_op = key
             return cls._logical_filter_to_q(logical_op, conditions, Q)
 
@@ -158,7 +150,11 @@ class JSON2Q:
         raise SyntaxError("Unsupported operator or field")
 
     @classmethod
-    def to_q(cls, filters: dict[str, Any], Q: type[T]) -> T:
+    def to_q(
+        cls,
+        filters: dict[str, Any],
+        Q: type[T],
+    ) -> T:
         return cls._to_q(
             filters,
             Q,
